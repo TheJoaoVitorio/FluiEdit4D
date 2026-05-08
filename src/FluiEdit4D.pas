@@ -9,10 +9,39 @@ uses
 type
   TFluiEditStyle = (fsNormal, fsLabelOnTop, fsOutline);
 
+  TFluiInnerIconScaleMode = (smOriginal, smStretch, smProportional);
+  TFluiInnerIconPosition = (ipLeft, ipRight);
+
+  TFluiInnerIcon = class(TPersistent)
+  private
+    FOwner: TPersistent;
+    FImage: TImage;
+    FPosition: TFluiInnerIconPosition;
+    FSpacing: Integer;
+    FScaleMode: TFluiInnerIconScaleMode;
+    FVisible: Boolean;
+    procedure SetImage(const Value: TImage);
+    procedure SetPosition(const Value: TFluiInnerIconPosition);
+    procedure SetSpacing(const Value: Integer);
+    procedure SetScaleMode(const Value: TFluiInnerIconScaleMode);
+    procedure SetVisible(const Value: Boolean);
+    procedure Changed;
+  public
+    constructor Create(AOwner: TPersistent);
+    destructor Destroy; override;
+  published
+    property Image: TImage read FImage write SetImage;
+    property Position: TFluiInnerIconPosition read FPosition write SetPosition default ipLeft;
+    property Spacing: Integer read FSpacing write SetSpacing default 4;
+    property ScaleMode: TFluiInnerIconScaleMode read FScaleMode write SetScaleMode default smProportional;
+    property Visible: Boolean read FVisible write SetVisible default True;
+  end;
+
   TFluiEdit4D = class(TCustomControl)
   private
     FEdit: TEdit;
     FLabel: TLabel;
+    FInnerIcon: TFluiInnerIcon;
     FRounding: Integer;
     FStyle: TFluiEditStyle;
     FBorderColor: TColor;
@@ -42,6 +71,7 @@ type
     function GetMaxLength: Integer;
     procedure SetTextHint(const Value: string);
     function GetTextHint: string;
+    procedure SetInnerIcon(const Value: TFluiInnerIcon);
 
     procedure EditGotFocus(Sender: TObject);
     procedure EditLostFocus(Sender: TObject);
@@ -69,6 +99,7 @@ type
     property BackgroundColor: TColor read FBackgroundColor write SetBackgroundColor default clWhite;
     property Text: string read GetText write SetText;
     property TextHint: string read GetTextHint write SetTextHint;
+    property InnerIcon: TFluiInnerIcon read FInnerIcon write SetInnerIcon;
     property PasswordChar: Char read GetPasswordChar write SetPasswordChar default #0;
     property LabelSpacing: Integer read FLabelSpacing write SetLabelSpacing default 4;
     property LabelCaption: string read GetLabelCaption write SetLabelCaption;
@@ -123,6 +154,76 @@ begin
   RegisterComponents('FLUI', [TFluiEdit4D]);
 end;
 
+{ TFluiInnerIcon }
+
+constructor TFluiInnerIcon.Create(AOwner: TPersistent);
+begin
+  inherited Create;
+  FOwner := AOwner;
+  FImage := TImage.Create(nil);
+  FPosition := ipLeft;
+  FSpacing := 4;
+  FScaleMode := smProportional;
+  FVisible := True;
+end;
+
+destructor TFluiInnerIcon.Destroy;
+begin
+  FImage.Free;
+  inherited Destroy;
+end;
+
+procedure TFluiInnerIcon.Changed;
+begin
+  if FOwner is TFluiEdit4D then
+  begin
+    TFluiEdit4D(FOwner).UpdateLayout;
+    TFluiEdit4D(FOwner).Invalidate;
+  end;
+end;
+
+procedure TFluiInnerIcon.SetImage(const Value: TImage);
+begin
+  FImage.Picture.Assign(Value.Picture);
+  Changed;
+end;
+
+procedure TFluiInnerIcon.SetPosition(const Value: TFluiInnerIconPosition);
+begin
+  if FPosition <> Value then
+  begin
+    FPosition := Value;
+    Changed;
+  end;
+end;
+
+procedure TFluiInnerIcon.SetScaleMode(const Value: TFluiInnerIconScaleMode);
+begin
+  if FScaleMode <> Value then
+  begin
+    FScaleMode := Value;
+    Changed;
+  end;
+end;
+
+procedure TFluiInnerIcon.SetSpacing(const Value: Integer);
+begin
+  if FSpacing <> Value then
+  begin
+    FSpacing := Value;
+    Changed;
+  end;
+end;
+
+procedure TFluiInnerIcon.SetVisible(const Value: Boolean);
+begin
+  if FVisible <> Value then
+  begin
+    FVisible := Value;
+    Changed;
+  end;
+end;
+
 { TFluiEdit4D }
 
 constructor TFluiEdit4D.Create(AOwner: TComponent);
@@ -140,6 +241,8 @@ begin
 
   FLabelFont := TFont.Create;
   FLabelFont.OnChange := LabelFontChange;
+
+  FInnerIcon := TFluiInnerIcon.Create(Self);
 
   FEdit := TEdit.Create(Self);
   FEdit.Parent := Self;
@@ -164,6 +267,7 @@ end;
 destructor TFluiEdit4D.Destroy;
 begin
   FLabelFont.Free;
+  FInnerIcon.Free;
   inherited Destroy;
 end;
 
@@ -237,11 +341,17 @@ var
   LRect: TRect;
   LColor: TGPColor;
   LBorderWidth: Single;
+  LIconRect: TRect;
+  LBitmap: TGPBitmap;
+  LIconWidth, LIconHeight: Integer;
+  LTop: Integer;
+  LScale: Single;
 begin
   inherited;
   LGraphics := TGPGraphics.Create(Canvas.Handle);
   try
     LGraphics.SetSmoothingMode(SmoothingModeAntiAlias);
+    LGraphics.SetInterpolationMode(InterpolationModeHighQualityBicubic);
 
     LRect := ClientRect;
     
@@ -302,6 +412,49 @@ begin
     finally
       LPath.Free;
     end;
+
+    // Draw Icon
+    if FInnerIcon.Visible and not FInnerIcon.Image.Picture.IsEmpty then
+    begin
+      LBitmap := TGPBitmap.Create(FInnerIcon.Image.Picture.Bitmap.Handle, 0);
+      try
+        LTop := 0;
+        if FStyle = fsLabelOnTop then
+          LTop := FLabel.Height + FLabelSpacing
+        else if FStyle = fsOutline then
+          LTop := FLabel.Height div 2;
+
+        LIconHeight := Self.Height - LTop - 12;
+        LIconWidth := LIconHeight;
+
+        case FInnerIcon.ScaleMode of
+          smOriginal:
+          begin
+            LIconWidth := FInnerIcon.Image.Picture.Width;
+            LIconHeight := FInnerIcon.Image.Picture.Height;
+          end;
+          smStretch: ; // Default LIconWidth/LIconHeight
+          smProportional:
+          begin
+            LScale := LIconHeight / FInnerIcon.Image.Picture.Height;
+            LIconWidth := Round(FInnerIcon.Image.Picture.Width * LScale);
+          end;
+        end;
+
+        if FInnerIcon.Position = ipLeft then
+          LIconRect.Left := (FRounding div 2) + 8
+        else
+          LIconRect.Left := Self.Width - (FRounding div 2) - 8 - LIconWidth;
+
+        LIconRect.Top := LTop + (Self.Height - LTop - LIconHeight) div 2;
+        LIconRect.Width := LIconWidth;
+        LIconRect.Height := LIconHeight;
+
+        LGraphics.DrawImage(LBitmap, LIconRect.Left, LIconRect.Top, LIconRect.Width, LIconRect.Height);
+      finally
+        LBitmap.Free;
+      end;
+    end;
   finally
     LGraphics.Free;
   end;
@@ -337,6 +490,17 @@ end;
 procedure TFluiEdit4D.SetFocusedColor(const Value: TColor);
 begin
   FFocusedColor := Value;
+  Invalidate;
+end;
+
+procedure TFluiEdit4D.SetInnerIcon(const Value: TFluiInnerIcon);
+begin
+  FInnerIcon.Image.Picture.Assign(Value.Image.Picture);
+  FInnerIcon.Position := Value.Position;
+  FInnerIcon.Spacing := Value.Spacing;
+  FInnerIcon.ScaleMode := Value.ScaleMode;
+  FInnerIcon.Visible := Value.Visible;
+  UpdateLayout;
   Invalidate;
 end;
 
@@ -409,8 +573,11 @@ end;
 procedure TFluiEdit4D.UpdateLayout;
 var
   LTop: Integer;
+  LIconSpace: Integer;
+  LIconWidth: Integer;
+  LScale: Single;
 begin
-  if not Assigned(FEdit) or not Assigned(FLabel) then Exit;
+  if not Assigned(FEdit) or not Assigned(FLabel) or not Assigned(FInnerIcon) then Exit;
 
   FLabel.Visible := FStyle in [fsLabelOnTop, fsOutline];
   
@@ -427,9 +594,33 @@ begin
     LTop := 0;
   end;
 
-  FEdit.Left := (FRounding div 2) + 8;
+  LIconSpace := 0;
+  if FInnerIcon.Visible and not FInnerIcon.Image.Picture.IsEmpty then
+  begin
+    case FInnerIcon.ScaleMode of
+      smOriginal: LIconWidth := FInnerIcon.Image.Picture.Width;
+      smStretch: LIconWidth := Self.Height - LTop - 12;
+      smProportional:
+      begin
+        if FInnerIcon.Image.Picture.Height > 0 then
+          LScale := (Self.Height - LTop - 12) / FInnerIcon.Image.Picture.Height
+        else
+          LScale := 1;
+        LIconWidth := Round(FInnerIcon.Image.Picture.Width * LScale);
+      end;
+    else
+      LIconWidth := 0;
+    end;
+    LIconSpace := LIconWidth + FInnerIcon.Spacing;
+  end;
+
+  if FInnerIcon.Position = ipLeft then
+    FEdit.Left := (FRounding div 2) + 8 + LIconSpace
+  else
+    FEdit.Left := (FRounding div 2) + 8;
+
   FEdit.Top := LTop + (Self.Height - LTop - FEdit.Height) div 2;
-  FEdit.Width := Self.Width - (FRounding + 16);
+  FEdit.Width := Self.Width - (FRounding + 16) - LIconSpace;
   
   // Height adjustment for fsLabelOnTop
   if (FStyle in [fsLabelOnTop, fsOutline]) and (Height < FLabel.Height + 25) then
