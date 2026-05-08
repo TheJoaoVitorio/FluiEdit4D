@@ -364,7 +364,6 @@ var
   LColor: TGPColor;
   LBorderWidth: Single;
   LIconRect: TRect;
-  LBitmap: TGPBitmap;
   LIconWidth, LIconHeight: Integer;
   LTop: Integer;
   LScale: Single;
@@ -373,7 +372,6 @@ begin
   LGraphics := TGPGraphics.Create(Canvas.Handle);
   try
     LGraphics.SetSmoothingMode(SmoothingModeAntiAlias);
-    LGraphics.SetInterpolationMode(InterpolationModeHighQualityBicubic);
 
     LRect := ClientRect;
     
@@ -434,54 +432,49 @@ begin
     finally
       LPath.Free;
     end;
-
-    // Draw Icon
-    if FInnerIcon.Visible and (FInnerIcon.Picture.Graphic <> nil) and not FInnerIcon.Picture.Graphic.Empty then
-    begin
-      LBitmap := TGPBitmap.Create(FInnerIcon.Picture.Bitmap.Handle, 0);
-      try
-        LTop := 0;
-        if FStyle = fsLabelOnTop then
-          LTop := FLabel.Height + FLabelSpacing
-        else if FStyle = fsOutline then
-          LTop := FLabel.Height div 2;
-
-        LIconHeight := Self.Height - LTop - 12;
-        LIconWidth := LIconHeight;
-
-        case FInnerIcon.ScaleMode of
-          smOriginal:
-          begin
-            LIconWidth := FInnerIcon.Picture.Width;
-            LIconHeight := FInnerIcon.Picture.Height;
-          end;
-          smStretch: ; // Default LIconWidth/LIconHeight
-          smProportional:
-          begin
-            if FInnerIcon.Picture.Height > 0 then
-              LScale := LIconHeight / FInnerIcon.Picture.Height
-            else
-              LScale := 1;
-            LIconWidth := Round(FInnerIcon.Picture.Width * LScale);
-          end;
-        end;
-
-        if FInnerIcon.Position = ipLeft then
-          LIconRect.Left := (FRounding div 2) + 8
-        else
-          LIconRect.Left := Self.Width - (FRounding div 2) - 8 - LIconWidth;
-
-        LIconRect.Top := LTop + (Self.Height - LTop - LIconHeight) div 2;
-        LIconRect.Width := LIconWidth;
-        LIconRect.Height := LIconHeight;
-
-        LGraphics.DrawImage(LBitmap, LIconRect.Left, LIconRect.Top, LIconRect.Width, LIconRect.Height);
-      finally
-        LBitmap.Free;
-      end;
-    end;
   finally
     LGraphics.Free;
+  end;
+
+  // Draw Icon using VCL StretchDraw (more reliable for Designer feedback)
+  if FInnerIcon.Visible and (FInnerIcon.Picture.Graphic <> nil) and not FInnerIcon.Picture.Graphic.Empty then
+  begin
+    LTop := 0;
+    if FStyle = fsLabelOnTop then
+      LTop := FLabel.Height + FLabelSpacing
+    else if FStyle = fsOutline then
+      LTop := FLabel.Height div 2;
+
+    LIconHeight := Self.Height - LTop - 12;
+    LIconWidth := LIconHeight;
+
+    case FInnerIcon.ScaleMode of
+      smOriginal:
+      begin
+        LIconWidth := FInnerIcon.Picture.Width;
+        LIconHeight := FInnerIcon.Picture.Height;
+      end;
+      smStretch: ; // Default LIconWidth/LIconHeight
+      smProportional:
+      begin
+        if FInnerIcon.Picture.Height > 0 then
+          LScale := LIconHeight / FInnerIcon.Picture.Height
+        else
+          LScale := 1;
+        LIconWidth := Round(FInnerIcon.Picture.Width * LScale);
+      end;
+    end;
+
+    if FInnerIcon.Position = ipLeft then
+      LIconRect.Left := (FRounding div 2) + 8
+    else
+      LIconRect.Left := Self.Width - (FRounding div 2) - 8 - LIconWidth;
+
+    LIconRect.Top := LTop + (Self.Height - LTop - LIconHeight) div 2;
+    LIconRect.Right := LIconRect.Left + LIconWidth;
+    LIconRect.Bottom := LIconRect.Top + LIconHeight;
+
+    Canvas.StretchDraw(LIconRect, FInnerIcon.Picture.Graphic);
   end;
 end;
 
