@@ -20,6 +20,7 @@ type
     FBackgroundColor: TColor;
     FFocused: Boolean;
     FLabelSpacing: Integer;
+    FLabelFont: TFont;
     FOnChange: TNotifyEvent;
 
     procedure SetRounding(const Value: Integer);
@@ -34,20 +35,25 @@ type
     procedure SetLabelSpacing(const Value: Integer);
     procedure SetLabelCaption(const Value: string);
     function GetLabelCaption: string;
+    procedure SetLabelFont(const Value: TFont);
     procedure SetReadOnly(const Value: Boolean);
     function GetReadOnly: Boolean;
     procedure SetMaxLength(const Value: Integer);
     function GetMaxLength: Integer;
+    procedure SetTextHint(const Value: string);
+    function GetTextHint: string;
 
     procedure EditGotFocus(Sender: TObject);
     procedure EditLostFocus(Sender: TObject);
     procedure EditChange(Sender: TObject);
+    procedure LabelFontChange(Sender: TObject);
     procedure UpdateLayout;
     function GetGDIColor(AColor: TColor): TGPColor;
   protected
     procedure Paint; override;
     procedure Resize; override;
     procedure SetEnabled(Value: Boolean); override;
+    procedure Loaded; override;
     procedure CMFontChanged(var Message: TMessage); message CM_FONTCHANGED;
     procedure CMEnabledChanged(var Message: TMessage); message CM_ENABLEDCHANGED;
   public
@@ -62,9 +68,11 @@ type
     property FocusedColor: TColor read FFocusedColor write SetFocusedColor default $00FF8000;
     property BackgroundColor: TColor read FBackgroundColor write SetBackgroundColor default clWhite;
     property Text: string read GetText write SetText;
+    property TextHint: string read GetTextHint write SetTextHint;
     property PasswordChar: Char read GetPasswordChar write SetPasswordChar default #0;
     property LabelSpacing: Integer read FLabelSpacing write SetLabelSpacing default 4;
     property LabelCaption: string read GetLabelCaption write SetLabelCaption;
+    property LabelFont: TFont read FLabelFont write SetLabelFont;
     property ReadOnly: Boolean read GetReadOnly write SetReadOnly default False;
     property MaxLength: Integer read GetMaxLength write SetMaxLength default 0;
     
@@ -130,6 +138,9 @@ begin
   FLabelSpacing := 4;
   FFocused := False;
 
+  FLabelFont := TFont.Create;
+  FLabelFont.OnChange := LabelFontChange;
+
   FEdit := TEdit.Create(Self);
   FEdit.Parent := Self;
   FEdit.BorderStyle := bsNone;
@@ -143,12 +154,14 @@ begin
   FLabel.Caption := 'Label';
   FLabel.Visible := False;
   FLabel.Transparent := True;
+  FLabel.Font.Assign(FLabelFont);
 
   UpdateLayout;
 end;
 
 destructor TFluiEdit4D.Destroy;
 begin
+  FLabelFont.Free;
   inherited Destroy;
 end;
 
@@ -203,6 +216,13 @@ end;
 function TFluiEdit4D.GetText: string;
 begin
   Result := FEdit.Text;
+end;
+
+procedure TFluiEdit4D.LabelFontChange(Sender: TObject);
+begin
+  FLabel.Font.Assign(FLabelFont);
+  UpdateLayout;
+  Invalidate;
 end;
 
 procedure TFluiEdit4D.Paint;
@@ -325,6 +345,11 @@ begin
   Invalidate;
 end;
 
+procedure TFluiEdit4D.SetLabelFont(const Value: TFont);
+begin
+  FLabelFont.Assign(Value);
+end;
+
 procedure TFluiEdit4D.SetLabelSpacing(const Value: Integer);
 begin
   FLabelSpacing := Value;
@@ -335,6 +360,16 @@ end;
 procedure TFluiEdit4D.SetMaxLength(const Value: Integer);
 begin
   FEdit.MaxLength := Value;
+end;
+
+procedure TFluiEdit4D.SetTextHint(const Value: string);
+begin
+  FEdit.TextHint := Value;
+end;
+
+function TFluiEdit4D.GetTextHint: string;
+begin
+  Result := FEdit.TextHint;
 end;
 
 procedure TFluiEdit4D.SetPasswordChar(const Value: Char);
@@ -373,18 +408,20 @@ procedure TFluiEdit4D.UpdateLayout;
 var
   LTop: Integer;
 begin
-  if not Assigned(FEdit) then Exit;
+  if not Assigned(FEdit) or not Assigned(FLabel) then Exit;
 
   FLabel.Visible := FStyle in [fsLabelOnTop, fsOutline];
   
   if FLabel.Visible then
   begin
+    FLabel.Parent := Self;
     FLabel.Left := 4;
     FLabel.Top := 0;
     LTop := FLabel.Height + FLabelSpacing;
   end
   else
   begin
+    FLabel.Parent := nil;
     LTop := 0;
   end;
 
@@ -395,6 +432,12 @@ begin
   // Height adjustment for fsLabelOnTop
   if (FStyle in [fsLabelOnTop, fsOutline]) and (Height < FLabel.Height + 25) then
     Height := FLabel.Height + FLabelSpacing + 30;
+end;
+
+procedure TFluiEdit4D.Loaded;
+begin
+  inherited;
+  UpdateLayout;
 end;
 
 
