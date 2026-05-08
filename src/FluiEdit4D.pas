@@ -4,7 +4,8 @@ interface
 
 uses
   System.SysUtils, System.Classes, Vcl.Controls, Vcl.StdCtrls, Vcl.Graphics,
-  Vcl.ExtCtrls, Vcl.Forms, Winapi.Windows, Winapi.Messages, Winapi.GDIPOBJ, Winapi.GDIPAPI;
+  Vcl.ExtCtrls, Vcl.Forms, Winapi.Windows, Winapi.Messages, Winapi.GDIPOBJ, 
+  Winapi.GDIPAPI, Vcl.Imaging.pngimage, Vcl.Imaging.jpeg, Vcl.Imaging.GIFImg;
 
 type
   TFluiEditStyle = (fsNormal, fsLabelOnTop, fsOutline);
@@ -27,6 +28,8 @@ type
     procedure SetVisible(const Value: Boolean);
     procedure Changed;
     procedure PictureChanged(Sender: TObject);
+  protected
+    function GetOwner: TPersistent; override;
   public
     constructor Create(AOwner: TPersistent);
     destructor Destroy; override;
@@ -86,6 +89,7 @@ type
     procedure Resize; override;
     procedure SetEnabled(Value: Boolean); override;
     procedure Loaded; override;
+    procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
     procedure CMFontChanged(var Message: TMessage); message CM_FONTCHANGED;
     procedure CMEnabledChanged(var Message: TMessage); message CM_ENABLEDCHANGED;
   public
@@ -121,7 +125,7 @@ type
     property PopupMenu;
     property ShowHint;
     property TabOrder;
-    property TabStop;
+    property TabStop default False;
     property Visible;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
     property OnClick;
@@ -200,6 +204,11 @@ begin
   end;
 end;
 
+function TFluiInnerIcon.GetOwner: TPersistent;
+begin
+  Result := FOwner;
+end;
+
 procedure TFluiInnerIcon.PictureChanged(Sender: TObject);
 begin
   Changed;
@@ -260,6 +269,7 @@ begin
   FBackgroundColor := clWhite;
   FLabelSpacing := 4;
   FFocused := False;
+  TabStop := False;
 
   FLabelFont := TFont.Create;
   FLabelFont.OnChange := LabelFontChange;
@@ -274,6 +284,7 @@ begin
   FEdit.OnExit := EditLostFocus;
   FEdit.OnChange := EditChange;
   FEdit.Color := FBackgroundColor;
+  FEdit.TabStop := False;
 
   FLabel := TLabel.Create(Self);
   FLabel.Parent := Self;
@@ -281,7 +292,9 @@ begin
   FLabel.Caption := 'Label';
   FLabel.Visible := False;
   FLabel.Transparent := True;
+  FLabel.Font.Size := 10;
   FLabel.Font.Assign(FLabelFont);
+
 
   UpdateLayout;
 end;
@@ -351,6 +364,13 @@ begin
   FLabel.Font.Assign(FLabelFont);
   UpdateLayout;
   Invalidate;
+end;
+
+procedure TFluiEdit4D.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+begin
+  inherited;
+  if FEdit.CanFocus then
+    FEdit.SetFocus;
 end;
 
 procedure TFluiEdit4D.Paint;
@@ -436,7 +456,7 @@ begin
     LGraphics.Free;
   end;
 
-  // Draw Icon using VCL StretchDraw (more reliable for Designer feedback)
+  // Draw Icon using VCL StretchDraw
   if FInnerIcon.Visible and (FInnerIcon.Picture.Graphic <> nil) and not FInnerIcon.Picture.Graphic.Empty then
   begin
     LTop := 0;
@@ -598,7 +618,10 @@ begin
     FLabel.Parent := Self;
     FLabel.Left := 4;
     FLabel.Top := 0;
-    LTop := FLabel.Height + FLabelSpacing;
+    if FStyle = fsLabelOnTop then
+      LTop := FLabel.Height + FLabelSpacing
+    else
+      LTop := FLabel.Height div 2;
   end
   else
   begin
@@ -631,6 +654,7 @@ begin
   else
     FEdit.Left := (FRounding div 2) + 8;
 
+  // Perfect vertical alignment using the same centering logic as the icon in Paint
   FEdit.Top := LTop + (Self.Height - LTop - FEdit.Height) div 2;
   FEdit.Width := Self.Width - (FRounding + 16) - LIconSpace;
   
