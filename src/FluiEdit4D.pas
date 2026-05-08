@@ -143,6 +143,7 @@ begin
 
   FEdit := TEdit.Create(Self);
   FEdit.Parent := Self;
+  FEdit.ParentFont := False;
   FEdit.BorderStyle := bsNone;
   FEdit.OnEnter := EditGotFocus;
   FEdit.OnExit := EditLostFocus;
@@ -151,6 +152,7 @@ begin
 
   FLabel := TLabel.Create(Self);
   FLabel.Parent := Self;
+  FLabel.ParentFont := False;
   FLabel.Caption := 'Label';
   FLabel.Visible := False;
   FLabel.Transparent := True;
