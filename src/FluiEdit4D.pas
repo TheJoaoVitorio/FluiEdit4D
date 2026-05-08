@@ -30,6 +30,7 @@ type
   public
     constructor Create(AOwner: TPersistent);
     destructor Destroy; override;
+    procedure Assign(Source: TPersistent); override;
   published
     property Picture: TPicture read FPicture write SetPicture;
     property Position: TFluiInnerIconPosition read FPosition write SetPosition default ipLeft;
@@ -175,9 +176,24 @@ begin
   inherited Destroy;
 end;
 
+procedure TFluiInnerIcon.Assign(Source: TPersistent);
+begin
+  if Source is TFluiInnerIcon then
+  begin
+    FPicture.Assign(TFluiInnerIcon(Source).Picture);
+    FPosition := TFluiInnerIcon(Source).Position;
+    FSpacing := TFluiInnerIcon(Source).Spacing;
+    FScaleMode := TFluiInnerIcon(Source).ScaleMode;
+    FVisible := TFluiInnerIcon(Source).Visible;
+    Changed;
+  end
+  else
+    inherited Assign(Source);
+end;
+
 procedure TFluiInnerIcon.Changed;
 begin
-  if FOwner is TFluiEdit4D then
+  if (FOwner <> nil) and (FOwner is TFluiEdit4D) then
   begin
     TFluiEdit4D(FOwner).UpdateLayout;
     TFluiEdit4D(FOwner).Invalidate;
@@ -504,13 +520,7 @@ end;
 
 procedure TFluiEdit4D.SetInnerIcon(const Value: TFluiInnerIcon);
 begin
-  FInnerIcon.Picture.Assign(Value.Picture);
-  FInnerIcon.Position := Value.Position;
-  FInnerIcon.Spacing := Value.Spacing;
-  FInnerIcon.ScaleMode := Value.ScaleMode;
-  FInnerIcon.Visible := Value.Visible;
-  UpdateLayout;
-  Invalidate;
+  FInnerIcon.Assign(Value);
 end;
 
 procedure TFluiEdit4D.SetLabelCaption(const Value: string);
