@@ -15,22 +15,23 @@ type
   TFluiInnerIcon = class(TPersistent)
   private
     FOwner: TPersistent;
-    FImage: TImage;
+    FPicture: TPicture;
     FPosition: TFluiInnerIconPosition;
     FSpacing: Integer;
     FScaleMode: TFluiInnerIconScaleMode;
     FVisible: Boolean;
-    procedure SetImage(const Value: TImage);
+    procedure SetPicture(const Value: TPicture);
     procedure SetPosition(const Value: TFluiInnerIconPosition);
     procedure SetSpacing(const Value: Integer);
     procedure SetScaleMode(const Value: TFluiInnerIconScaleMode);
     procedure SetVisible(const Value: Boolean);
     procedure Changed;
+    procedure PictureChanged(Sender: TObject);
   public
     constructor Create(AOwner: TPersistent);
     destructor Destroy; override;
   published
-    property Image: TImage read FImage write SetImage;
+    property Picture: TPicture read FPicture write SetPicture;
     property Position: TFluiInnerIconPosition read FPosition write SetPosition default ipLeft;
     property Spacing: Integer read FSpacing write SetSpacing default 4;
     property ScaleMode: TFluiInnerIconScaleMode read FScaleMode write SetScaleMode default smProportional;
@@ -160,7 +161,8 @@ constructor TFluiInnerIcon.Create(AOwner: TPersistent);
 begin
   inherited Create;
   FOwner := AOwner;
-  FImage := TImage.Create(nil);
+  FPicture := TPicture.Create;
+  FPicture.OnChange := PictureChanged;
   FPosition := ipLeft;
   FSpacing := 4;
   FScaleMode := smProportional;
@@ -169,7 +171,7 @@ end;
 
 destructor TFluiInnerIcon.Destroy;
 begin
-  FImage.Free;
+  FPicture.Free;
   inherited Destroy;
 end;
 
@@ -182,10 +184,14 @@ begin
   end;
 end;
 
-procedure TFluiInnerIcon.SetImage(const Value: TImage);
+procedure TFluiInnerIcon.PictureChanged(Sender: TObject);
 begin
-  FImage.Picture.Assign(Value.Picture);
   Changed;
+end;
+
+procedure TFluiInnerIcon.SetPicture(const Value: TPicture);
+begin
+  FPicture.Assign(Value);
 end;
 
 procedure TFluiInnerIcon.SetPosition(const Value: TFluiInnerIconPosition);
@@ -414,9 +420,9 @@ begin
     end;
 
     // Draw Icon
-    if FInnerIcon.Visible and not FInnerIcon.Image.Picture.IsEmpty then
+    if FInnerIcon.Visible and (FInnerIcon.Picture.Graphic <> nil) and not FInnerIcon.Picture.Graphic.Empty then
     begin
-      LBitmap := TGPBitmap.Create(FInnerIcon.Image.Picture.Bitmap.Handle, 0);
+      LBitmap := TGPBitmap.Create(FInnerIcon.Picture.Bitmap.Handle, 0);
       try
         LTop := 0;
         if FStyle = fsLabelOnTop then
@@ -430,14 +436,17 @@ begin
         case FInnerIcon.ScaleMode of
           smOriginal:
           begin
-            LIconWidth := FInnerIcon.Image.Picture.Width;
-            LIconHeight := FInnerIcon.Image.Picture.Height;
+            LIconWidth := FInnerIcon.Picture.Width;
+            LIconHeight := FInnerIcon.Picture.Height;
           end;
           smStretch: ; // Default LIconWidth/LIconHeight
           smProportional:
           begin
-            LScale := LIconHeight / FInnerIcon.Image.Picture.Height;
-            LIconWidth := Round(FInnerIcon.Image.Picture.Width * LScale);
+            if FInnerIcon.Picture.Height > 0 then
+              LScale := LIconHeight / FInnerIcon.Picture.Height
+            else
+              LScale := 1;
+            LIconWidth := Round(FInnerIcon.Picture.Width * LScale);
           end;
         end;
 
@@ -495,7 +504,7 @@ end;
 
 procedure TFluiEdit4D.SetInnerIcon(const Value: TFluiInnerIcon);
 begin
-  FInnerIcon.Image.Picture.Assign(Value.Image.Picture);
+  FInnerIcon.Picture.Assign(Value.Picture);
   FInnerIcon.Position := Value.Position;
   FInnerIcon.Spacing := Value.Spacing;
   FInnerIcon.ScaleMode := Value.ScaleMode;
@@ -595,18 +604,18 @@ begin
   end;
 
   LIconSpace := 0;
-  if FInnerIcon.Visible and not FInnerIcon.Image.Picture.IsEmpty then
+  if FInnerIcon.Visible and (FInnerIcon.Picture.Graphic <> nil) and not FInnerIcon.Picture.Graphic.Empty then
   begin
     case FInnerIcon.ScaleMode of
-      smOriginal: LIconWidth := FInnerIcon.Image.Picture.Width;
+      smOriginal: LIconWidth := FInnerIcon.Picture.Width;
       smStretch: LIconWidth := Self.Height - LTop - 12;
       smProportional:
       begin
-        if FInnerIcon.Image.Picture.Height > 0 then
-          LScale := (Self.Height - LTop - 12) / FInnerIcon.Image.Picture.Height
+        if FInnerIcon.Picture.Height > 0 then
+          LScale := (Self.Height - LTop - 12) / FInnerIcon.Picture.Height
         else
           LScale := 1;
-        LIconWidth := Round(FInnerIcon.Image.Picture.Width * LScale);
+        LIconWidth := Round(FInnerIcon.Picture.Width * LScale);
       end;
     else
       LIconWidth := 0;
