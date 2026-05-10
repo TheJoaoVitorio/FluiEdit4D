@@ -84,6 +84,7 @@ type
     procedure LabelFontChange(Sender: TObject);
     procedure UpdateLayout;
     function GetGDIColor(AColor: TColor): TGPColor;
+    procedure WMSetFocus(var Message: TWMSetFocus); message WM_SETFOCUS;
   protected
     procedure Paint; override;
     procedure Resize; override;
@@ -269,7 +270,8 @@ begin
   FBackgroundColor := clWhite;
   FLabelSpacing := 4;
   FFocused := False;
-  TabStop := False;
+  TabStop := True;
+  Cursor := crIBeam;
 
   FLabelFont := TFont.Create;
   FLabelFont.OnChange := LabelFontChange;
@@ -284,7 +286,8 @@ begin
   FEdit.OnExit := EditLostFocus;
   FEdit.OnChange := EditChange;
   FEdit.Color := FBackgroundColor;
-  FEdit.TabStop := False;
+  FEdit.TabStop := True;
+  FEdit.Cursor := crIBeam;
 
   FLabel := TLabel.Create(Self);
   FLabel.Parent := Self;
@@ -371,6 +374,11 @@ begin
   inherited;
   if FEdit.CanFocus then
     FEdit.SetFocus;
+end;
+
+procedure TFluiEdit4D.WMSetFocus(var Message: TWMSetFocus);
+begin
+  FEdit.SetFocus;
 end;
 
 procedure TFluiEdit4D.Paint;
