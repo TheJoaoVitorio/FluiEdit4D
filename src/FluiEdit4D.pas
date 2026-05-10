@@ -56,6 +56,9 @@ type
     FLabelSpacing: Integer;
     FLabelFont: TFont;
     FOnChange: TNotifyEvent;
+    FTextHint: string;
+    FTextHintOpacity: Byte;
+    FOldEditProc: TWndMethod;
 
     procedure SetRounding(const Value: Integer);
     procedure SetStyle(const Value: TFluiEditStyle);
@@ -76,11 +79,13 @@ type
     function GetMaxLength: Integer;
     procedure SetTextHint(const Value: string);
     function GetTextHint: string;
+    procedure SetTextHintOpacity(const Value: Byte);
     procedure SetInnerIcon(const Value: TFluiInnerIcon);
 
     procedure EditGotFocus(Sender: TObject);
     procedure EditLostFocus(Sender: TObject);
     procedure EditChange(Sender: TObject);
+    procedure EditWindowProc(var Message: TMessage);
     procedure LabelFontChange(Sender: TObject);
     procedure UpdateLayout;
     function GetGDIColor(AColor: TColor): TGPColor;
@@ -113,6 +118,7 @@ type
     property LabelFont: TFont read FLabelFont write SetLabelFont;
     property ReadOnly: Boolean read GetReadOnly write SetReadOnly default False;
     property MaxLength: Integer read GetMaxLength write SetMaxLength default 0;
+    property TextHintOpacity: Byte read FTextHintOpacity write SetTextHintOpacity default 120;
     
     property Align;
     property Anchors;
@@ -272,6 +278,7 @@ begin
   FFocused := False;
   TabStop := True;
   Cursor := crIBeam;
+  FTextHintOpacity := 120;
 
   FLabelFont := TFont.Create;
   FLabelFont.OnChange := LabelFontChange;
@@ -288,6 +295,9 @@ begin
   FEdit.Color := FBackgroundColor;
   FEdit.TabStop := True;
   FEdit.Cursor := crIBeam;
+  
+  FOldEditProc := FEdit.WindowProc;
+  FEdit.WindowProc := EditWindowProc;
 
   FLabel := TLabel.Create(Self);
   FLabel.Parent := Self;
@@ -563,19 +573,77 @@ begin
   Invalidate;
 end;
 
-procedure TFluiEdit4D.SetMaxLength(const Value: Integer);
+procedure TFluiEdit4D.SetTextHintOpacity(const Value: Byte);
 begin
-  FEdit.MaxLength := Value;
+  if FTextHintOpacity <> Value then
+  begin
+    FTextHintOpacity := Value;
+    FEdit.Invalidate;
+  end;
 end;
 
 procedure TFluiEdit4D.SetTextHint(const Value: string);
 begin
-  FEdit.TextHint := Value;
+  if FTextHint <> Value then
+  begin
+    FTextHint := Value;
+    // We don't set FEdit.TextHint to avoid native rendering
+    FEdit.Invalidate;
+  end;
 end;
 
 function TFluiEdit4D.GetTextHint: string;
 begin
-  Result := FEdit.TextHint;
+  Result := FTextHint;
+end;
+
+procedure TFluiEdit4D.EditWindowProc(var Message: TMessage);
+var
+  LDC: HDC;
+  LGraphics: TGPGraphics;
+  LBrush: TGPSolidBrush;
+  LFont: TGPFont;
+  LFamily: TGPFontFamily;
+  LColor: TColor;
+begin
+  FOldEditProc(Message);
+
+  if (Message.Msg = WM_PAINT) and (FEdit.Text = '') and (FTextHint <> '') then
+  begin
+    LDC := GetDC(FEdit.Handle);
+    try
+      LGraphics := TGPGraphics.Create(LDC);
+      try
+        LGraphics.SetTextRenderingHint(TextRenderingHintAntiAlias);
+        LFamily := TGPFontFamily.Create(FEdit.Font.Name);
+        try
+          LFont := TGPFont.Create(LFamily, Single(FEdit.Font.Size), FontStyleRegular, UnitPoint);
+          try
+            LColor := ColorToRGB(FEdit.Font.Color);
+            LBrush := TGPSolidBrush.Create(MakeColor(FTextHintOpacity, GetRValue(LColor), GetGValue(LColor), GetBValue(LColor)));
+            try
+              LGraphics.DrawString(FTextHint, -1, LFont, MakePoint(0.0, 0.0), LBrush);
+            finally
+              LBrush.Free;
+            end;
+          finally
+            LFont.Free;
+          end;
+        finally
+          LFamily.Free;
+        end;
+      finally
+        LGraphics.Free;
+      end;
+    finally
+      ReleaseDC(FEdit.Handle, LDC);
+    end;
+  end;
+end;
+
+procedure TFluiEdit4D.SetMaxLength(const Value: Integer);
+begin
+  FEdit.MaxLength := Value;
 end;
 
 procedure TFluiEdit4D.SetPasswordChar(const Value: Char);
