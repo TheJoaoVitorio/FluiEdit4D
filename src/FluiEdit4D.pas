@@ -4,11 +4,13 @@ interface
 
 uses
   System.SysUtils, System.Classes, Vcl.Controls, Vcl.StdCtrls, Vcl.Graphics,
-  Vcl.ExtCtrls, Vcl.Forms, Winapi.Windows, Winapi.Messages, Winapi.GDIPOBJ, 
+  Vcl.ExtCtrls, Vcl.Forms, Winapi.Windows, Winapi.Messages, Winapi.GDIPOBJ,
   Winapi.GDIPAPI, Vcl.Imaging.pngimage, Vcl.Imaging.jpeg, Vcl.Imaging.GIFImg;
 
 type
   TFluiEditStyle = (fsNormal, fsLabelOnTop, fsOutline);
+
+  TFluiHelperTextAlignment = (haLeft, haCenter, haRight);
 
   TFluiInnerIconScaleMode = (smOriginal, smStretch, smProportional);
   TFluiInnerIconPosition = (ipLeft, ipRight);
@@ -36,9 +38,11 @@ type
     procedure Assign(Source: TPersistent); override;
   published
     property Picture: TPicture read FPicture write SetPicture;
-    property Position: TFluiInnerIconPosition read FPosition write SetPosition default ipLeft;
+    property Position: TFluiInnerIconPosition read FPosition write SetPosition
+      default ipLeft;
     property Spacing: Integer read FSpacing write SetSpacing default 4;
-    property ScaleMode: TFluiInnerIconScaleMode read FScaleMode write SetScaleMode default smProportional;
+    property ScaleMode: TFluiInnerIconScaleMode read FScaleMode
+      write SetScaleMode default smProportional;
     property Visible: Boolean read FVisible write SetVisible default True;
   end;
 
@@ -62,6 +66,7 @@ type
     FHelperLabel: TLabel;
     FHelperTextFont: TFont;
     FEnabledHelperText: Boolean;
+    FHelperTextAlignment: TFluiHelperTextAlignment;
 
     procedure SetRounding(const Value: Integer);
     procedure SetStyle(const Value: TFluiEditStyle);
@@ -88,6 +93,7 @@ type
     function GetHelperText: string;
     procedure SetEnabledHelperText(const Value: Boolean);
     procedure SetHelperTextFont(const Value: TFont);
+    procedure SetHelperTextAlignment(const Value: TFluiHelperTextAlignment);
 
     procedure EditGotFocus(Sender: TObject);
     procedure EditLostFocus(Sender: TObject);
@@ -103,9 +109,11 @@ type
     procedure Resize; override;
     procedure SetEnabled(Value: Boolean); override;
     procedure Loaded; override;
-    procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
+    procedure MouseDown(Button: TMouseButton; Shift: TShiftState;
+      X, Y: Integer); override;
     procedure CMFontChanged(var Message: TMessage); message CM_FONTCHANGED;
-    procedure CMEnabledChanged(var Message: TMessage); message CM_ENABLEDCHANGED;
+    procedure CMEnabledChanged(var Message: TMessage);
+      message CM_ENABLEDCHANGED;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -114,23 +122,31 @@ type
   published
     property Rounding: Integer read FRounding write SetRounding default 8;
     property Style: TFluiEditStyle read FStyle write SetStyle default fsNormal;
-    property BorderColor: TColor read FBorderColor write SetBorderColor default $00D8D8D8;
-    property FocusedColor: TColor read FFocusedColor write SetFocusedColor default $00FF8000;
-    property BackgroundColor: TColor read FBackgroundColor write SetBackgroundColor default clWhite;
+    property BorderColor: TColor read FBorderColor write SetBorderColor
+      default $00D8D8D8;
+    property FocusedColor: TColor read FFocusedColor write SetFocusedColor
+      default $00FF8000;
+    property BackgroundColor: TColor read FBackgroundColor
+      write SetBackgroundColor default clWhite;
     property Text: string read GetText write SetText;
     property TextHint: string read GetTextHint write SetTextHint;
     property InnerIcon: TFluiInnerIcon read FInnerIcon write SetInnerIcon;
-    property PasswordChar: Char read GetPasswordChar write SetPasswordChar default #0;
-    property LabelSpacing: Integer read FLabelSpacing write SetLabelSpacing default 4;
+    property PasswordChar: Char read GetPasswordChar write SetPasswordChar
+      default #0;
+    property LabelSpacing: Integer read FLabelSpacing write SetLabelSpacing
+      default 4;
     property LabelCaption: string read GetLabelCaption write SetLabelCaption;
     property LabelFont: TFont read FLabelFont write SetLabelFont;
     property ReadOnly: Boolean read GetReadOnly write SetReadOnly default False;
     property MaxLength: Integer read GetMaxLength write SetMaxLength default 0;
-    property TextHintOpacity: Byte read FTextHintOpacity write SetTextHintOpacity default 120;
+    property TextHintOpacity: Byte read FTextHintOpacity
+      write SetTextHintOpacity default 120;
     property HelperText: string read GetHelperText write SetHelperText;
-    property EnabledHelperText: Boolean read FEnabledHelperText write SetEnabledHelperText default False;
+    property EnabledHelperText: Boolean read FEnabledHelperText
+      write SetEnabledHelperText default False;
     property HelperTextFont: TFont read FHelperTextFont write SetHelperTextFont;
-    
+    property HelperTextAlignment: TFluiHelperTextAlignment read FHelperTextAlignment write SetHelperTextAlignment default haLeft;
+
     property Align;
     property Anchors;
     property Color;
@@ -291,9 +307,9 @@ begin
   Cursor := crIBeam;
   FTextHintOpacity := 120;
 
+  // 1. Create objects first
   FLabelFont := TFont.Create;
-  FLabelFont.OnChange := LabelFontChange;
-
+  FHelperTextFont := TFont.Create;
   FInnerIcon := TFluiInnerIcon.Create(Self);
 
   FEdit := TEdit.Create(Self);
@@ -306,9 +322,6 @@ begin
   FEdit.Color := FBackgroundColor;
   FEdit.TabStop := True;
   FEdit.Cursor := crIBeam;
-  
-  FOldEditProc := FEdit.WindowProc;
-  FEdit.WindowProc := EditWindowProc;
 
   FLabel := TLabel.Create(Self);
   FLabel.Parent := Self;
@@ -317,12 +330,6 @@ begin
   FLabel.Visible := False;
   FLabel.Transparent := True;
   FLabel.Font.Size := 10;
-  FLabel.Font.Assign(FLabelFont);
-
-  FHelperTextFont := TFont.Create;
-  FHelperTextFont.OnChange := HelperLabelFontChange;
-  FHelperTextFont.Size := 8;
-  FHelperTextFont.Color := clGray;
 
   FHelperLabel := TLabel.Create(Self);
   FHelperLabel.Parent := Self;
@@ -330,6 +337,18 @@ begin
   FHelperLabel.Caption := '';
   FHelperLabel.Visible := False;
   FHelperLabel.Transparent := True;
+
+  // 2. Hook WindowProc
+  FOldEditProc := FEdit.WindowProc;
+  FEdit.WindowProc := EditWindowProc;
+
+  // 3. Set properties that might trigger events
+  FLabelFont.OnChange := LabelFontChange;
+  FLabel.Font.Assign(FLabelFont);
+
+  FHelperTextFont.Size := 8;
+  FHelperTextFont.Color := clGray;
+  FHelperTextFont.OnChange := HelperLabelFontChange;
   FHelperLabel.Font.Assign(FHelperTextFont);
 
   UpdateLayout;
@@ -337,6 +356,8 @@ end;
 
 destructor TFluiEdit4D.Destroy;
 begin
+  if Assigned(FEdit) then
+    FEdit.WindowProc := FOldEditProc;
   FHelperTextFont.Free;
   FLabelFont.Free;
   FInnerIcon.Free;
@@ -373,49 +394,74 @@ end;
 
 function TFluiEdit4D.GetHelperText: string;
 begin
-  Result := FHelperLabel.Caption;
+  if Assigned(FHelperLabel) then
+    Result := FHelperLabel.Caption
+  else
+    Result := '';
 end;
 
 function TFluiEdit4D.GetLabelCaption: string;
 begin
-  Result := FLabel.Caption;
+  if Assigned(FLabel) then
+    Result := FLabel.Caption
+  else
+    Result := '';
 end;
 
 function TFluiEdit4D.GetMaxLength: Integer;
 begin
-  Result := FEdit.MaxLength;
+  if Assigned(FEdit) then
+    Result := FEdit.MaxLength
+  else
+    Result := 0;
 end;
 
 function TFluiEdit4D.GetPasswordChar: Char;
 begin
-  Result := FEdit.PasswordChar;
+  if Assigned(FEdit) then
+    Result := FEdit.PasswordChar
+  else
+    Result := #0;
 end;
 
 function TFluiEdit4D.GetReadOnly: Boolean;
 begin
-  Result := FEdit.ReadOnly;
+  if Assigned(FEdit) then
+    Result := FEdit.ReadOnly
+  else
+    Result := False;
 end;
 
 function TFluiEdit4D.GetText: string;
 begin
-  Result := FEdit.Text;
+  if Assigned(FEdit) then
+    Result := FEdit.Text
+  else
+    Result := '';
 end;
 
 procedure TFluiEdit4D.HelperLabelFontChange(Sender: TObject);
 begin
-  FHelperLabel.Font.Assign(FHelperTextFont);
-  UpdateLayout;
-  Invalidate;
+  if Assigned(FHelperLabel) and Assigned(FHelperTextFont) then
+  begin
+    FHelperLabel.Font.Assign(FHelperTextFont);
+    UpdateLayout;
+    Invalidate;
+  end;
 end;
 
 procedure TFluiEdit4D.LabelFontChange(Sender: TObject);
 begin
-  FLabel.Font.Assign(FLabelFont);
-  UpdateLayout;
-  Invalidate;
+  if Assigned(FLabel) and Assigned(FLabelFont) then
+  begin
+    FLabel.Font.Assign(FLabelFont);
+    UpdateLayout;
+    Invalidate;
+  end;
 end;
 
-procedure TFluiEdit4D.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+procedure TFluiEdit4D.MouseDown(Button: TMouseButton; Shift: TShiftState;
+  X, Y: Integer);
 begin
   inherited;
   if FEdit.CanFocus then
@@ -448,7 +494,7 @@ begin
     LGraphics.SetSmoothingMode(SmoothingModeAntiAlias);
 
     LRect := ClientRect;
-    
+
     // Adjust rect based on style
     if FStyle = fsLabelOnTop then
     begin
@@ -464,16 +510,22 @@ begin
       LRect.Bottom := LRect.Bottom - FHelperLabel.Height - 4;
 
     LRound := FRounding;
-    if LRound > (LRect.Bottom - LRect.Top) then LRound := (LRect.Bottom - LRect.Top);
-    if LRound > (LRect.Right - LRect.Left) then LRound := (LRect.Right - LRect.Left);
+    if LRound > (LRect.Bottom - LRect.Top) then
+      LRound := (LRect.Bottom - LRect.Top);
+    if LRound > (LRect.Right - LRect.Left) then
+      LRound := (LRect.Right - LRect.Left);
 
     LPath := TGPGraphicsPath.Create;
     try
       LBorderWidth := 1.5;
-      LPath.AddArc(LRect.Left + LBorderWidth, LRect.Top + LBorderWidth, LRound, LRound, 180, 90);
-      LPath.AddArc(LRect.Right - LRound - LBorderWidth, LRect.Top + LBorderWidth, LRound, LRound, 270, 90);
-      LPath.AddArc(LRect.Right - LRound - LBorderWidth, LRect.Bottom - LRound - LBorderWidth, LRound, LRound, 0, 90);
-      LPath.AddArc(LRect.Left + LBorderWidth, LRect.Bottom - LRound - LBorderWidth, LRound, LRound, 90, 90);
+      LPath.AddArc(LRect.Left + LBorderWidth, LRect.Top + LBorderWidth, LRound,
+        LRound, 180, 90);
+      LPath.AddArc(LRect.Right - LRound - LBorderWidth,
+        LRect.Top + LBorderWidth, LRound, LRound, 270, 90);
+      LPath.AddArc(LRect.Right - LRound - LBorderWidth, LRect.Bottom - LRound -
+        LBorderWidth, LRound, LRound, 0, 90);
+      LPath.AddArc(LRect.Left + LBorderWidth, LRect.Bottom - LRound -
+        LBorderWidth, LRound, LRound, 90, 90);
       LPath.CloseFigure;
 
       // Fill Background
@@ -493,13 +545,14 @@ begin
       LPen := TGPPen.Create(LColor, LBorderWidth);
       try
         LGraphics.DrawPath(LPen, LPath);
-        
+
         // If Outline, clear the border under the label
         if FStyle = fsOutline then
         begin
           LBrush := TGPSolidBrush.Create(GetGDIColor(Self.Color));
           try
-            LGraphics.FillRectangle(LBrush, FLabel.Left + 2, LRect.Top - 2, FLabel.Width + 4, 4);
+            LGraphics.FillRectangle(LBrush, FLabel.Left + 2, LRect.Top - 2,
+              FLabel.Width + 4, 4);
           finally
             LBrush.Free;
           end;
@@ -515,7 +568,8 @@ begin
   end;
 
   // Draw Icon using VCL StretchDraw
-  if FInnerIcon.Visible and (FInnerIcon.Picture.Graphic <> nil) and not FInnerIcon.Picture.Graphic.Empty then
+  if FInnerIcon.Visible and (FInnerIcon.Picture.Graphic <> nil) and
+    not FInnerIcon.Picture.Graphic.Empty then
   begin
     LTop := 0;
     if FStyle = fsLabelOnTop then
@@ -528,19 +582,20 @@ begin
 
     case FInnerIcon.ScaleMode of
       smOriginal:
-      begin
-        LIconWidth := FInnerIcon.Picture.Width;
-        LIconHeight := FInnerIcon.Picture.Height;
-      end;
-      smStretch: ; // Default LIconWidth/LIconHeight
+        begin
+          LIconWidth := FInnerIcon.Picture.Width;
+          LIconHeight := FInnerIcon.Picture.Height;
+        end;
+      smStretch:
+        ; // Default LIconWidth/LIconHeight
       smProportional:
-      begin
-        if FInnerIcon.Picture.Height > 0 then
-          LScale := LIconHeight / FInnerIcon.Picture.Height
-        else
-          LScale := 1;
-        LIconWidth := Round(FInnerIcon.Picture.Width * LScale);
-      end;
+        begin
+          if FInnerIcon.Picture.Height > 0 then
+            LScale := LIconHeight / FInnerIcon.Picture.Height
+          else
+            LScale := 1;
+          LIconWidth := Round(FInnerIcon.Picture.Width * LScale);
+        end;
     end;
 
     if FInnerIcon.Position = ipLeft then
@@ -613,6 +668,16 @@ begin
   FHelperTextFont.Assign(Value);
 end;
 
+procedure TFluiEdit4D.SetHelperTextAlignment(const Value: TFluiHelperTextAlignment);
+begin
+  if FHelperTextAlignment <> Value then
+  begin
+    FHelperTextAlignment := Value;
+    UpdateLayout;
+    Invalidate;
+  end;
+end;
+
 procedure TFluiEdit4D.SetInnerIcon(const Value: TFluiInnerIcon);
 begin
   FInnerIcon.Assign(Value);
@@ -681,12 +746,15 @@ begin
         LGraphics.SetTextRenderingHint(TextRenderingHintAntiAlias);
         LFamily := TGPFontFamily.Create(FEdit.Font.Name);
         try
-          LFont := TGPFont.Create(LFamily, Single(FEdit.Font.Size), FontStyleRegular, UnitPoint);
+          LFont := TGPFont.Create(LFamily, Single(FEdit.Font.Size),
+            FontStyleRegular, UnitPoint);
           try
             LColor := ColorToRGB(FEdit.Font.Color);
-            LBrush := TGPSolidBrush.Create(MakeColor(FTextHintOpacity, GetRValue(LColor), GetGValue(LColor), GetBValue(LColor)));
+            LBrush := TGPSolidBrush.Create(MakeColor(FTextHintOpacity,
+              GetRValue(LColor), GetGValue(LColor), GetBValue(LColor)));
             try
-              LGraphics.DrawString(FTextHint, -1, LFont, MakePoint(0.0, 0.0), LBrush);
+              LGraphics.DrawString(FTextHint, -1, LFont,
+                MakePoint(0.0, 0.0), LBrush);
             finally
               LBrush.Free;
             end;
@@ -750,10 +818,12 @@ var
   LScale: Single;
   LAvailableHeight: Integer;
 begin
-  if not Assigned(FEdit) or not Assigned(FLabel) or not Assigned(FInnerIcon) or not Assigned(FHelperLabel) then Exit;
+  if not Assigned(FEdit) or not Assigned(FLabel) or not Assigned(FInnerIcon) or
+    not Assigned(FHelperLabel) then
+    Exit;
 
   FLabel.Visible := FStyle in [fsLabelOnTop, fsOutline];
-  
+
   if FLabel.Visible then
   begin
     FLabel.Parent := Self;
@@ -773,7 +843,11 @@ begin
   FHelperLabel.Visible := FEnabledHelperText;
   if FHelperLabel.Visible then
   begin
-    FHelperLabel.Left := 4;
+    case FHelperTextAlignment of
+      haLeft:   FHelperLabel.Left := 4;
+      haCenter: FHelperLabel.Left := (Self.Width - FHelperLabel.Width) div 2;
+      haRight:  FHelperLabel.Left := Self.Width - FHelperLabel.Width - 4;
+    end;
     FHelperLabel.Top := Self.Height - FHelperLabel.Height;
     LAvailableHeight := Self.Height - LTop - FHelperLabel.Height - 4;
   end
@@ -781,19 +855,22 @@ begin
     LAvailableHeight := Self.Height - LTop;
 
   LIconSpace := 0;
-  if FInnerIcon.Visible and (FInnerIcon.Picture.Graphic <> nil) and not FInnerIcon.Picture.Graphic.Empty then
+  if FInnerIcon.Visible and (FInnerIcon.Picture.Graphic <> nil) and
+    not FInnerIcon.Picture.Graphic.Empty then
   begin
     case FInnerIcon.ScaleMode of
-      smOriginal: LIconWidth := FInnerIcon.Picture.Width;
-      smStretch: LIconWidth := LAvailableHeight - 12;
+      smOriginal:
+        LIconWidth := FInnerIcon.Picture.Width;
+      smStretch:
+        LIconWidth := LAvailableHeight - 12;
       smProportional:
-      begin
-        if FInnerIcon.Picture.Height > 0 then
-          LScale := (LAvailableHeight - 12) / FInnerIcon.Picture.Height
-        else
-          LScale := 1;
-        LIconWidth := Round(FInnerIcon.Picture.Width * LScale);
-      end;
+        begin
+          if FInnerIcon.Picture.Height > 0 then
+            LScale := (LAvailableHeight - 12) / FInnerIcon.Picture.Height
+          else
+            LScale := 1;
+          LIconWidth := Round(FInnerIcon.Picture.Width * LScale);
+        end;
     else
       LIconWidth := 0;
     end;
@@ -808,14 +885,16 @@ begin
   // Perfect vertical alignment using the calculated available height
   FEdit.Top := LTop + (LAvailableHeight - FEdit.Height) div 2;
   FEdit.Width := Self.Width - (FRounding + 16) - LIconSpace;
-  
+
   // Height adjustment for fsLabelOnTop and HelperText
   if (FStyle in [fsLabelOnTop, fsOutline, fsNormal]) then
   begin
     LIconWidth := 30; // base height requirement
-    if FStyle = fsLabelOnTop then LIconWidth := FLabel.Height + FLabelSpacing + 30;
-    if FEnabledHelperText then LIconWidth := LIconWidth + FHelperLabel.Height + 4;
-    
+    if FStyle = fsLabelOnTop then
+      LIconWidth := FLabel.Height + FLabelSpacing + 30;
+    if FEnabledHelperText then
+      LIconWidth := LIconWidth + FHelperLabel.Height + 4;
+
     if Height < LIconWidth then
       Height := LIconWidth;
   end;
@@ -826,7 +905,6 @@ begin
   inherited;
   UpdateLayout;
 end;
-
 
 procedure TFluiEdit4D.CMEnabledChanged(var Message: TMessage);
 begin
