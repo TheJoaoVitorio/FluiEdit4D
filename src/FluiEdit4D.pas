@@ -659,13 +659,15 @@ end;
 procedure TFluiEdit4D.SetHelperText(const Value: string);
 begin
   FHelperLabel.Caption := Value;
+  FHelperLabel.Visible := FEnabledHelperText and (Value <> '');
   UpdateLayout;
   Invalidate;
 end;
 
 procedure TFluiEdit4D.SetHelperTextFont(const Value: TFont);
 begin
-  FHelperTextFont.Assign(Value);
+  if Assigned(FHelperTextFont) then
+    FHelperTextFont.Assign(Value);
 end;
 
 procedure TFluiEdit4D.SetHelperTextAlignment(const Value: TFluiHelperTextAlignment);
@@ -680,7 +682,8 @@ end;
 
 procedure TFluiEdit4D.SetInnerIcon(const Value: TFluiInnerIcon);
 begin
-  FInnerIcon.Assign(Value);
+  if Assigned(FInnerIcon) then
+    FInnerIcon.Assign(Value);
 end;
 
 procedure TFluiEdit4D.SetLabelCaption(const Value: string);
@@ -692,7 +695,8 @@ end;
 
 procedure TFluiEdit4D.SetLabelFont(const Value: TFont);
 begin
-  FLabelFont.Assign(Value);
+  if Assigned(FLabelFont) then
+    FLabelFont.Assign(Value);
 end;
 
 procedure TFluiEdit4D.SetLabelSpacing(const Value: Integer);
@@ -841,24 +845,22 @@ begin
   end;
 
   // 2. Determine Edit Area Height (Middle section)
-  // Usually around 30-40 pixels depending on component total height
   LEditAreaHeight := Self.Height - LTop;
   if FEnabledHelperText then
     LEditAreaHeight := LEditAreaHeight - FHelperLabel.Height - 4;
 
-  // 3. Position Bottom Helper Label
-  FHelperLabel.Visible := FEnabledHelperText;
-  if FHelperLabel.Visible then
-  begin
-    case FHelperTextAlignment of
-      haLeft:   FHelperLabel.Left := 4;
-      haCenter: FHelperLabel.Left := (Self.Width - FHelperLabel.Width) div 2;
-      haRight:  FHelperLabel.Left := Self.Width - FHelperLabel.Width - 4;
-    end;
-    FHelperLabel.Top := LTop + LEditAreaHeight + 4;
+  // 3. Position Bottom Helper Label (Always position it to avoid artifacts)
+  case FHelperTextAlignment of
+    haLeft:   FHelperLabel.Left := 4;
+    haCenter: FHelperLabel.Left := (Self.Width - FHelperLabel.Width) div 2;
+    haRight:  FHelperLabel.Left := Self.Width - FHelperLabel.Width - 4;
   end;
+  FHelperLabel.Top := Self.Height - FHelperLabel.Height;
 
-  // 4. Position Inner Edit and Icon within the Edit Area
+  // 4. Force Visibility synchronization
+  FHelperLabel.Visible := FEnabledHelperText and (FHelperLabel.Caption <> '');
+
+  // 5. Position Inner Edit and Icon within the Edit Area
   LIconSpace := 0;
   if FInnerIcon.Visible and (FInnerIcon.Picture.Graphic <> nil) and
     not FInnerIcon.Picture.Graphic.Empty then
