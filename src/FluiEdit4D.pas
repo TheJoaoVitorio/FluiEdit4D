@@ -816,14 +816,14 @@ var
   LIconSpace: Integer;
   LIconWidth: Integer;
   LScale: Single;
-  LAvailableHeight: Integer;
+  LEditAreaHeight: Integer;
 begin
   if not Assigned(FEdit) or not Assigned(FLabel) or not Assigned(FInnerIcon) or
     not Assigned(FHelperLabel) then
     Exit;
 
+  // 1. Position Top Label
   FLabel.Visible := FStyle in [fsLabelOnTop, fsOutline];
-
   if FLabel.Visible then
   begin
     FLabel.Parent := Self;
@@ -840,6 +840,13 @@ begin
     LTop := 0;
   end;
 
+  // 2. Determine Edit Area Height (Middle section)
+  // Usually around 30-40 pixels depending on component total height
+  LEditAreaHeight := Self.Height - LTop;
+  if FEnabledHelperText then
+    LEditAreaHeight := LEditAreaHeight - FHelperLabel.Height - 4;
+
+  // 3. Position Bottom Helper Label
   FHelperLabel.Visible := FEnabledHelperText;
   if FHelperLabel.Visible then
   begin
@@ -848,12 +855,10 @@ begin
       haCenter: FHelperLabel.Left := (Self.Width - FHelperLabel.Width) div 2;
       haRight:  FHelperLabel.Left := Self.Width - FHelperLabel.Width - 4;
     end;
-    FHelperLabel.Top := Self.Height - FHelperLabel.Height;
-    LAvailableHeight := Self.Height - LTop - FHelperLabel.Height - 4;
-  end
-  else
-    LAvailableHeight := Self.Height - LTop;
+    FHelperLabel.Top := LTop + LEditAreaHeight + 4;
+  end;
 
+  // 4. Position Inner Edit and Icon within the Edit Area
   LIconSpace := 0;
   if FInnerIcon.Visible and (FInnerIcon.Picture.Graphic <> nil) and
     not FInnerIcon.Picture.Graphic.Empty then
@@ -862,11 +867,11 @@ begin
       smOriginal:
         LIconWidth := FInnerIcon.Picture.Width;
       smStretch:
-        LIconWidth := LAvailableHeight - 12;
+        LIconWidth := LEditAreaHeight - 12;
       smProportional:
         begin
           if FInnerIcon.Picture.Height > 0 then
-            LScale := (LAvailableHeight - 12) / FInnerIcon.Picture.Height
+            LScale := (LEditAreaHeight - 12) / FInnerIcon.Picture.Height
           else
             LScale := 1;
           LIconWidth := Round(FInnerIcon.Picture.Width * LScale);
@@ -882,22 +887,18 @@ begin
   else
     FEdit.Left := (FRounding div 2) + 8;
 
-  // Perfect vertical alignment using the calculated available height
-  FEdit.Top := LTop + (LAvailableHeight - FEdit.Height) div 2;
+  FEdit.Top := LTop + (LEditAreaHeight - FEdit.Height) div 2;
   FEdit.Width := Self.Width - (FRounding + 16) - LIconSpace;
 
-  // Height adjustment for fsLabelOnTop and HelperText
-  if (FStyle in [fsLabelOnTop, fsOutline, fsNormal]) then
-  begin
-    LIconWidth := 30; // base height requirement
-    if FStyle = fsLabelOnTop then
-      LIconWidth := FLabel.Height + FLabelSpacing + 30;
-    if FEnabledHelperText then
-      LIconWidth := LIconWidth + FHelperLabel.Height + 4;
+  // 5. Ensure minimum height
+  LIconWidth := 30; // base requirement
+  if FStyle = fsLabelOnTop then
+    LIconWidth := LIconWidth + FLabel.Height + FLabelSpacing;
+  if FEnabledHelperText then
+    LIconWidth := LIconWidth + FHelperLabel.Height + 4;
 
-    if Height < LIconWidth then
-      Height := LIconWidth;
-  end;
+  if Height < LIconWidth then
+    Height := LIconWidth;
 end;
 
 procedure TFluiEdit4D.Loaded;
