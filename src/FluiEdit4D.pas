@@ -821,6 +821,7 @@ var
   LIconWidth: Integer;
   LScale: Single;
   LEditAreaHeight: Integer;
+  LTextHeight: Integer;
 begin
   if not Assigned(FEdit) or not Assigned(FLabel) or not Assigned(FInnerIcon) or
     not Assigned(FHelperLabel) then
@@ -830,7 +831,7 @@ begin
   FLabel.Visible := FStyle in [fsLabelOnTop, fsOutline];
   if FLabel.Visible then
   begin
-    FLabel.Parent := Self;
+    if FLabel.Parent <> Self then FLabel.Parent := Self;
     FLabel.Left := 4;
     FLabel.Top := 0;
     if FStyle = fsLabelOnTop then
@@ -839,28 +840,28 @@ begin
       LTop := FLabel.Height div 2;
   end
   else
-  begin
-    FLabel.Parent := nil;
     LTop := 0;
-  end;
 
-  // 2. Determine Edit Area Height (Middle section)
+  // 2. Determine Edit Area Height
   LEditAreaHeight := Self.Height - LTop;
   if FEnabledHelperText then
     LEditAreaHeight := LEditAreaHeight - FHelperLabel.Height - 4;
 
-  // 3. Position Bottom Helper Label (Always position it to avoid artifacts)
-  case FHelperTextAlignment of
-    haLeft:   FHelperLabel.Left := 4;
-    haCenter: FHelperLabel.Left := (Self.Width - FHelperLabel.Width) div 2;
-    haRight:  FHelperLabel.Left := Self.Width - FHelperLabel.Width - 4;
+  // 3. Position Bottom Helper Label
+  if Assigned(FHelperLabel) then
+  begin
+    if FHelperLabel.Parent <> Self then FHelperLabel.Parent := Self;
+    FHelperLabel.Visible := FEnabledHelperText and (FHelperLabel.Caption <> '');
+    
+    case FHelperTextAlignment of
+      haLeft:   FHelperLabel.Left := 4;
+      haCenter: FHelperLabel.Left := (Self.Width - FHelperLabel.Width) div 2;
+      haRight:  FHelperLabel.Left := Self.Width - FHelperLabel.Width - 4;
+    end;
+    FHelperLabel.Top := Self.Height - FHelperLabel.Height;
   end;
-  FHelperLabel.Top := Self.Height - FHelperLabel.Height;
 
-  // 4. Force Visibility synchronization
-  FHelperLabel.Visible := FEnabledHelperText and (FHelperLabel.Caption <> '');
-
-  // 5. Position Inner Edit and Icon within the Edit Area
+  // 4. Position Inner Edit and Icon within the Edit Area
   LIconSpace := 0;
   if FInnerIcon.Visible and (FInnerIcon.Picture.Graphic <> nil) and
     not FInnerIcon.Picture.Graphic.Empty then
@@ -889,6 +890,11 @@ begin
   else
     FEdit.Left := (FRounding div 2) + 8;
 
+  // Calculate text height safely without using component's Canvas
+  LTextHeight := Abs(FEdit.Font.Height);
+  if LTextHeight = 0 then LTextHeight := 13; // default
+  FEdit.Height := LTextHeight + 4; 
+  
   FEdit.Top := LTop + (LEditAreaHeight - FEdit.Height) div 2;
   FEdit.Width := Self.Width - (FRounding + 16) - LIconSpace;
 
@@ -899,7 +905,7 @@ begin
   if FEnabledHelperText then
     LIconWidth := LIconWidth + FHelperLabel.Height + 4;
 
-  if Height < LIconWidth then
+  if (Height < LIconWidth) and not (csLoading in ComponentState) then
     Height := LIconWidth;
 end;
 
