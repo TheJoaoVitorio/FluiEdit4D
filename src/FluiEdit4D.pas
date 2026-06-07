@@ -98,6 +98,9 @@ type
     procedure EditGotFocus(Sender: TObject);
     procedure EditLostFocus(Sender: TObject);
     procedure EditChange(Sender: TObject);
+    procedure EditKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+    procedure EditKeyPress(Sender: TObject; var Key: Char);
+    procedure EditKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure EditWindowProc(var Message: TMessage);
     procedure LabelFontChange(Sender: TObject);
     procedure HelperLabelFontChange(Sender: TObject);
@@ -319,6 +322,9 @@ begin
   FEdit.OnEnter := EditGotFocus;
   FEdit.OnExit := EditLostFocus;
   FEdit.OnChange := EditChange;
+  FEdit.OnKeyDown := EditKeyDown;
+  FEdit.OnKeyPress := EditKeyPress;
+  FEdit.OnKeyUp := EditKeyUp;
   FEdit.Color := FBackgroundColor;
   FEdit.TabStop := True;
   FEdit.Cursor := crIBeam;
@@ -368,6 +374,26 @@ procedure TFluiEdit4D.EditChange(Sender: TObject);
 begin
   if Assigned(FOnChange) then
     FOnChange(Self);
+end;
+
+procedure TFluiEdit4D.EditKeyDown(Sender: TObject; var Key: Word;
+  Shift: TShiftState);
+begin
+  if Assigned(OnKeyDown) then
+    OnKeyDown(Self, Key, Shift);
+end;
+
+procedure TFluiEdit4D.EditKeyPress(Sender: TObject; var Key: Char);
+begin
+  if Assigned(OnKeyPress) then
+    OnKeyPress(Self, Key);
+end;
+
+procedure TFluiEdit4D.EditKeyUp(Sender: TObject; var Key: Word;
+  Shift: TShiftState);
+begin
+  if Assigned(OnKeyUp) then
+    OnKeyUp(Self, Key, Shift);
 end;
 
 procedure TFluiEdit4D.EditGotFocus(Sender: TObject);
