@@ -5,10 +5,14 @@ interface
 uses
   System.SysUtils, System.Classes, Vcl.Controls, Vcl.StdCtrls, Vcl.Graphics,
   Vcl.ExtCtrls, Vcl.Forms, Winapi.Windows, Winapi.Messages, Winapi.GDIPOBJ,
-  Winapi.GDIPAPI, Vcl.Imaging.pngimage, Vcl.Imaging.jpeg, Vcl.Imaging.GIFImg;
+  Winapi.GDIPAPI, Vcl.Imaging.pngimage, Vcl.Imaging.jpeg, Vcl.Imaging.GIFImg,
+  Vcl.Mask;
 
 type
   TFluiEditStyle = (fsNormal, fsLabelOnTop, fsOutline);
+
+  TFluiMaskType = (mtNone, mtCPF, mtCNPJ, mtDate, mtPhone, mtEmail, mtDecimal,
+    mtCurrency, mtLetters, mtNumbers);
 
   TFluiHelperTextAlignment = (haLeft, haCenter, haRight);
 
@@ -48,7 +52,7 @@ type
 
   TFluiEdit4D = class(TCustomControl)
   private
-    FEdit: TEdit;
+    FEdit: TMaskEdit;
     FLabel: TLabel;
     FInnerIcon: TFluiInnerIcon;
     FRounding: Integer;
@@ -67,6 +71,8 @@ type
     FHelperTextFont: TFont;
     FEnabledHelperText: Boolean;
     FHelperTextAlignment: TFluiHelperTextAlignment;
+    FMaskType: TFluiMaskType;
+    FFormatting: Boolean;
 
     procedure SetRounding(const Value: Integer);
     procedure SetStyle(const Value: TFluiEditStyle);
@@ -89,6 +95,9 @@ type
     function GetTextHint: string;
     procedure SetTextHintOpacity(const Value: Byte);
     procedure SetInnerIcon(const Value: TFluiInnerIcon);
+    procedure SetEditMask(const Value: string);
+    function GetEditMask: string;
+    procedure SetMaskType(const Value: TFluiMaskType);
     procedure SetHelperText(const Value: string);
     function GetHelperText: string;
     procedure SetEnabledHelperText(const Value: Boolean);
@@ -120,7 +129,7 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    property Edit: TEdit read FEdit;
+    property Edit: TMaskEdit read FEdit;
     property EditLabel: TLabel read FLabel;
   published
     property Rounding: Integer read FRounding write SetRounding default 8;
@@ -132,6 +141,8 @@ type
     property BackgroundColor: TColor read FBackgroundColor
       write SetBackgroundColor default clWhite;
     property Text: string read GetText write SetText;
+    property MaskType: TFluiMaskType read FMaskType write SetMaskType default mtNone;
+    property EditMask: string read GetEditMask write SetEditMask;
     property TextHint: string read GetTextHint write SetTextHint;
     property InnerIcon: TFluiInnerIcon read FInnerIcon write SetInnerIcon;
     property PasswordChar: Char read GetPasswordChar write SetPasswordChar
@@ -191,6 +202,10 @@ type
 procedure Register;
 
 implementation
+
+{ TEditCracker allows access to protected members like NumbersOnly and Alignment }
+type
+  TEditCracker = class(TMaskEdit);
 
 procedure Register;
 begin
@@ -309,13 +324,15 @@ begin
   TabStop := True;
   Cursor := crIBeam;
   FTextHintOpacity := 120;
+  FMaskType := mtNone;
+  FFormatting := False;
 
   // 1. Create objects first
   FLabelFont := TFont.Create;
   FHelperTextFont := TFont.Create;
   FInnerIcon := TFluiInnerIcon.Create(Self);
 
-  FEdit := TEdit.Create(Self);
+  FEdit := TMaskEdit.Create(Self);
   FEdit.Parent := Self;
   FEdit.ParentFont := False;
   FEdit.BorderStyle := bsNone;
@@ -371,7 +388,37 @@ begin
 end;
 
 procedure TFluiEdit4D.EditChange(Sender: TObject);
+var
+  LText: string;
+  LValue: Double;
+  i: Integer;
 begin
+  if FFormatting then Exit;
+
+  if FMaskType in [mtDecimal, mtCurrency] then
+  begin
+    FFormatting := True;
+    try
+      LText := '';
+      for i := 1 to Length(FEdit.Text) do
+        if CharInSet(FEdit.Text[i], ['0'..'9']) then
+          LText := LText + FEdit.Text[i];
+
+      if LText = '' then LText := '0';
+
+      LValue := StrToInt64Def(LText, 0) / 100;
+
+      if FMaskType = mtCurrency then
+        FEdit.Text := FormatFloat('"R$ " #,##0.00', LValue)
+      else
+        FEdit.Text := FormatFloat('#,##0.00', LValue);
+
+      FEdit.SelStart := Length(FEdit.Text);
+    finally
+      FFormatting := False;
+    end;
+  end;
+
   if Assigned(FOnChange) then
     FOnChange(Self);
 end;
@@ -385,6 +432,22 @@ end;
 
 procedure TFluiEdit4D.EditKeyPress(Sender: TObject; var Key: Char);
 begin
+  case FMaskType of
+    mtLetters:
+      if not (Key in ['a'..'z', 'A'..'Z', #32, #8, #13, #27]) then
+        Key := #0;
+    mtDecimal, mtCurrency:
+      begin
+        if not (Key in ['0'..'9', #8, #13, #27]) then
+          Key := #0;
+      end;
+    mtEmail:
+      begin
+        if not (Key in ['a'..'z', 'A'..'Z', '0'..'9', '@', '.', '_', '-', #8, #13, #27]) then
+          Key := #0;
+      end;
+  end;
+
   if Assigned(OnKeyPress) then
     OnKeyPress(Self, Key);
 end;
@@ -416,6 +479,14 @@ var
 begin
   LColor := ColorToRGB(AColor);
   Result := MakeColor(255, GetRValue(LColor), GetGValue(LColor), GetBValue(LColor));
+end;
+
+function TFluiEdit4D.GetEditMask: string;
+begin
+  if Assigned(FEdit) then
+    Result := FEdit.EditMask
+  else
+    Result := '';
 end;
 
 function TFluiEdit4D.GetHelperText: string;
@@ -656,6 +727,12 @@ begin
   Invalidate;
 end;
 
+procedure TFluiEdit4D.SetEditMask(const Value: string);
+begin
+  if Assigned(FEdit) then
+    FEdit.EditMask := Value;
+end;
+
 procedure TFluiEdit4D.SetEnabled(Value: Boolean);
 begin
   inherited;
@@ -816,6 +893,38 @@ end;
 procedure TFluiEdit4D.SetReadOnly(const Value: Boolean);
 begin
   FEdit.ReadOnly := Value;
+end;
+
+procedure TFluiEdit4D.SetMaskType(const Value: TFluiMaskType);
+begin
+  if FMaskType <> Value then
+  begin
+    FMaskType := Value;
+    TEditCracker(FEdit).NumbersOnly := False;
+    FEdit.EditMask := '';
+    TEditCracker(FEdit).Alignment := taLeftJustify;
+
+    case FMaskType of
+      mtNone:     ;
+      mtCPF:      FEdit.EditMask := '!999.999.999-99;1;_';
+      mtCNPJ:     FEdit.EditMask := '!99.999.999/9999-99;1;_';
+      mtDate:     FEdit.EditMask := '!99/99/9999;1;_';
+      mtPhone:    FEdit.EditMask := '!(99) 99999-9999;1;_';
+      mtEmail:    ; 
+      mtDecimal, mtCurrency:  
+        begin
+          TEditCracker(FEdit).Alignment := taRightJustify;
+        end;
+      mtLetters:  ; 
+      mtNumbers:
+        begin
+          TEditCracker(FEdit).NumbersOnly := True;
+        end;
+    end;
+    
+    UpdateLayout;
+    Invalidate;
+  end;
 end;
 
 procedure TFluiEdit4D.SetRounding(const Value: Integer);
